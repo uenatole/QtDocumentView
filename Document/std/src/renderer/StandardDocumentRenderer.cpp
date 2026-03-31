@@ -5,75 +5,10 @@
 
 #include <Document/API/Document.h>
 
-#include "custom/QCacheExt.h"
+#include "RenderCache.h"
 
 namespace
 {
-    template<typename Set>
-    auto closest_element(Set& set, const typename Set::value_type& value)
-        -> decltype(set.begin())
-    {
-        const auto it = set.lower_bound(value);
-        if (it == set.begin())
-            return it;
-
-        const auto prev_it = std::prev(it);
-        return (it == set.end() || value - *prev_it <= *it - value) ? prev_it : it;
-    }
-
-    class RenderCache
-    {
-    public:
-        RenderCache()
-        {
-            _storage.setOnEraseFn([this](const std::pair<int, qreal>& key)
-            {
-                _keySets[key.first].erase(key.second);
-            });
-        }
-
-        QImage* object(int page, qreal scale) const
-        {
-            return _storage.object({ page, scale });
-        }
-
-        QImage* nearestObject(int page, const qreal targetScale) const
-        {
-            const auto& scales = _keySets[page];
-            const auto closestScaleIt = closest_element(scales, targetScale);
-
-            if (closestScaleIt == scales.end())
-                return nullptr;
-
-            return _storage.object({ page, *closestScaleIt });
-        }
-
-        bool insert(int page, qreal scale, QImage* image) const
-        {
-            if (const bool inserted = _storage.insert({ page, scale }, image, image->sizeInBytes()); Q_LIKELY(inserted))
-            {
-                _keySets[page].insert(scale);
-                return true;
-            }
-            return false;
-        }
-
-        void setLimit(std::size_t bytes) const
-        {
-            _storage.setMaxCost(bytes);
-        }
-
-        void clear()
-        {
-            _storage.clear();
-            _keySets.clear();
-        }
-
-    private:
-        mutable QCacheExt<std::pair<int, qreal>, QImage> _storage;
-        mutable QHash<int, std::set<qreal>> _keySets;
-    };
-
     struct RenderRequest
     {
         int Page;
