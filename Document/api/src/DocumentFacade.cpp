@@ -14,7 +14,8 @@ namespace
         {
             struct DummySelection : DocumentSelection
             {
-                auto configure(int, QRectF) -> void final {}
+                auto configure(int, const Option&) -> void final {}
+                auto empty() const -> bool final { return true; }
                 auto hash() const -> uint64_t final { return 0; }
                 auto text() const -> QString final { return {}; }
                 auto geometry() const -> QList<QRectF> final { return {}; }

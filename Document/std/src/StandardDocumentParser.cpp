@@ -291,6 +291,37 @@ private:
         };
     }
 
+    auto getLineIndices(const int page, const QPointF& point) const -> std::pair<LineIndices, CharIndices>
+    {
+        const PageLayout& layout = getPageLayout(page);
+
+        const auto it = std::find_if(layout.Lines.begin(), layout.Lines.end(), [point](const LineLayout& line)
+        {
+           return line.Geometry.contains(point);
+        });
+
+        if (it == layout.Lines.end())
+        {
+            return {{ -1, -1}, { -1, -1 }};
+        }
+
+        return {
+            {
+                std::distance(layout.Lines.begin(), it),
+                std::distance(layout.Lines.begin(), it),
+            },
+            {
+                it->Indices.first,
+                it->Indices.second
+            }
+        };
+    }
+
+    auto getWordIndices(const int page, const QPointF& point) const -> std::pair<LineIndices, CharIndices>
+    {
+        // TODO: impl
+    }
+
     friend class StandardDocumentParser;
 
     std::shared_ptr<const Document> document;
@@ -318,6 +349,9 @@ auto StandardDocumentParser::setDocument(std::shared_ptr<const Document> documen
     d->document = document;
 }
 
+template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+template<class... Ts> overload(Ts...) -> overload<Ts...>;
+
 auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelection>
 {
     struct TextSelection : DocumentSelection
@@ -326,10 +360,26 @@ auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelect
             : d_ptr(d)
         {}
 
-        auto configure(const int page, const QRectF region) -> void final
+        auto configure(const int page, const Option& option) -> void final
         {
-            m_page = page;
-            std::tie(m_iLine, m_iChar) = d_ptr->getIndices(page, region);
+          std::visit(overload {
+                [&](const Lines& lines) {
+                    m_page = page;
+                    std::tie(m_iLine, m_iChar) = d_ptr->getIndices(page, lines.region);
+                },
+                [&](const Line& line) {
+                    m_page = page;
+                    std::tie(m_iLine, m_iChar) = d_ptr->getLineIndices(page, line.point);
+                },
+                [&](const Word& word) {
+                    // TODO: impl
+                },
+            }, option);
+        }
+
+        auto empty() const -> bool final
+        {
+            return m_page == -1 || hash() == (static_cast<int64_t>(-1) << 32 | -1);
         }
 
         auto hash() const -> uint64_t final

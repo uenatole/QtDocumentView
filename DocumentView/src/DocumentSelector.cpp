@@ -1,15 +1,22 @@
 #include "DocumentSelector.h"
 
 #include <QMouseEvent>
+#include <QApplication>
 
 #include "DocumentView.h"
 #include "DocumentPageItem.h"
+
+#include <QDateTime>
 
 DocumentSelector::DocumentSelector(DocumentView* parent)
     : QObject(parent)
     , m_view(parent)
 {
     m_view->viewport()->installEventFilter(this);
+
+    m_clickTimer.setSingleShot(true);
+    m_clickTimer.setInterval(QApplication::doubleClickInterval());
+    connect(&m_clickTimer, &QTimer::timeout, this, [this] { m_clickCount = 0; });
 }
 
 bool DocumentSelector::eventFilter(QObject* object, QEvent* event)
@@ -23,13 +30,15 @@ bool DocumentSelector::eventFilter(QObject* object, QEvent* event)
 
         if (mouse->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton)
         {
-            if (Q_LIKELY(!m_start))
+            if (!m_start)
                 onPressed(pos);
         }
         else if (mouse->type() == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton)
         {
-            if (Q_LIKELY(m_start))
+            if (m_start)
                 onReleased(pos);
+
+            handleClick(pos);
         }
         else if (mouse->type() == QEvent::MouseMove)
         {
@@ -41,13 +50,28 @@ bool DocumentSelector::eventFilter(QObject* object, QEvent* event)
     return QObject::eventFilter(object, event);
 }
 
+void DocumentSelector::handleClick(QPoint point)
+{
+    m_clickCount++;
+    m_clickTimer.start();
+
+    if (m_clickCount == 2)
+    {
+        onDoubleClicked(point);
+    }
+    else if (m_clickCount == 3)
+    {
+        onTripleClicked(point);
+    }
+}
+
 void DocumentSelector::onPressed(const QPoint point)
 {
     m_start = m_view->mapToScene(point);
 
     for (const auto item : m_view->items())
         if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
-            page->SetSelectionRect({});
+            page->SelectLines({});
 }
 
 void DocumentSelector::onReleased(QPoint)
@@ -73,6 +97,34 @@ void DocumentSelector::onMoved(const QPoint point) const
                 continue;
 
             const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
-            page->SetSelectionRect(pageIntersectionRect);
+            page->SelectLines(pageIntersectionRect);
+        }
+}
+
+void DocumentSelector::onDoubleClicked(QPoint point) const
+{
+    for (const auto item : m_view->items())
+        if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+        {
+            const auto location = m_view->mapToScene(point);
+            if (page->sceneBoundingRect().contains(location))
+            {
+                // TODO: impl
+                break;
+            }
+        }
+}
+
+void DocumentSelector::onTripleClicked(QPoint point) const
+{
+    for (const auto item : m_view->items())
+        if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+        {
+            const auto location = m_view->mapToScene(point);
+            if (page->sceneBoundingRect().contains(location))
+            {
+                page->SelectLine(page->mapFromScene(location));
+                break;
+            }
         }
 }

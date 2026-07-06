@@ -62,7 +62,7 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
     painter->save();
     painter->setCompositionMode(QPainter::CompositionMode_Multiply);
 
-    if (const QRectF rect = d_ptr->selectionRect; !rect.isNull())
+    if (!d_ptr->textSelection->empty())
     {
         // TODO: make text selection style configurable
 
@@ -87,20 +87,27 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
     painter->restore();
 }
 
-void DocumentPageItem::SetSelectionRect(const QRectF& rect)
+void DocumentPageItem::SelectLines(const QRectF& rect)
 {
     if (rect != d_ptr->selectionRect)
     {
         d_ptr->selectionRect = rect;
 
         const auto idTmp = d_ptr->textSelection->hash();
-        d_ptr->textSelection->configure(d_ptr->number, rect);
+        d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Lines { rect });
 
         if (idTmp != d_ptr->textSelection->hash())
         {
             update();
         }
     }
+}
+
+void DocumentPageItem::SelectLine(const QPointF &point)
+{
+    d_ptr->selectionRect = {};
+    d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Line { point });
+    update();
 }
 
 QString DocumentPageItem::GetSelectedText() const

@@ -21,7 +21,9 @@ public:
 
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;
 
-    void SetSelectionRect(const QRectF& rect);
+    void SelectLines(const QRectF& rect);
+    void SelectLine(const QPointF& point);
+
     QString GetSelectedText() const;
 
     int Number() const;
