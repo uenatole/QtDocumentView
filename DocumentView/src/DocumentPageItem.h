@@ -23,6 +23,7 @@ public:
 
     void SelectLines(const QRectF& rect);
     void SelectLine(const QPointF& point);
+    void SelectWord(const QPointF& point);
 
     QString GetSelectedText() const;
 

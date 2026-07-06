@@ -109,7 +109,7 @@ void DocumentSelector::onDoubleClicked(QPoint point) const
             const auto location = m_view->mapToScene(point);
             if (page->sceneBoundingRect().contains(location))
             {
-                // TODO: impl
+                page->SelectWord(page->mapFromScene(location));
                 break;
             }
         }

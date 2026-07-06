@@ -27,7 +27,6 @@ private:
     const int number;
     const QSizeF pointSize;
 
-    QRectF selectionRect;
     std::optional<DocumentLink> currentLink;
 };
 
@@ -89,24 +88,24 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
 
 void DocumentPageItem::SelectLines(const QRectF& rect)
 {
-    if (rect != d_ptr->selectionRect)
+    const auto idTmp = d_ptr->textSelection->hash();
+    d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Lines { rect });
+
+    if (idTmp != d_ptr->textSelection->hash())
     {
-        d_ptr->selectionRect = rect;
-
-        const auto idTmp = d_ptr->textSelection->hash();
-        d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Lines { rect });
-
-        if (idTmp != d_ptr->textSelection->hash())
-        {
-            update();
-        }
+        update();
     }
 }
 
 void DocumentPageItem::SelectLine(const QPointF &point)
 {
-    d_ptr->selectionRect = {};
     d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Line { point });
+    update();
+}
+
+void DocumentPageItem::SelectWord(const QPointF &point)
+{
+    d_ptr->textSelection->configure(d_ptr->number, DocumentSelection::Word { point });
     update();
 }
 

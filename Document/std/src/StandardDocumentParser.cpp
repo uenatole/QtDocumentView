@@ -17,6 +17,17 @@ namespace
         CharIndices Indices; // [a; b)
         QRectF Geometry;
         QList<InLineRange> Chars;
+        QList<InLineRange> Words;
+
+        [[nodiscard]] QList<InLineRange>::const_iterator findWordAt(const QPointF& pos) const
+        {
+            if (!Geometry.contains(pos))
+                return Chars.constEnd();
+
+            return std::find_if(Words.begin(), Words.end(), [pos](const InLineRange& word) {
+                return word.first <= pos.x() && pos.x() <= word.second;
+            });
+        }
 
         [[nodiscard]] QList<InLineRange>::const_iterator findFirstCharCrossedBy(const QRectF& rect) const
         {
@@ -200,9 +211,11 @@ private:
         {
             layout = new PageLayout();
 
+            QString chars = document->text(page); // NOTE: for word bounds (redundant?; this can be done using geometry with reasonable spacing between printable characters) TODO: try it
+            QList<QRectF> charBoxes = document->textBoxes(page);
+
             // Line forming method
             {
-                QList<QRectF> charBoxes = document->textBoxes(page);
                 QList<LineLayout> lines;
 
                 // TODO: change line detection method because right now it sometimes is wrong
@@ -214,9 +227,26 @@ private:
                 LineLayout currentLine = {};
                 int startIndex = 0;
 
+                QList<InLineRange> words;
+                std::optional<qreal> wordBegin = std::nullopt;
+
                 for (int i = 0; i < charBoxes.size(); ++i)
                 {
+                    const auto& c = chars[i];
                     const auto& box = charBoxes[i];
+
+                    if (c.isSpace()) {
+                        if (wordBegin) {
+                            words.push_back({ *wordBegin, charBoxes[i - 1].right() });
+                            wordBegin = std::nullopt;
+                        }
+                        else {
+                            wordBegin = box.left();
+                        }
+                    }
+                    else if (!wordBegin) {
+                        wordBegin = box.left();
+                    }
 
                     if (currentLine.Chars.isEmpty())
                     {
@@ -234,9 +264,13 @@ private:
                         else
                         {
                             currentLine.Indices = qMakePair(startIndex, i);
+                            currentLine.Words = words;
                             lines.append(currentLine);
 
                             currentLine = {};
+
+                            words.clear();
+                            wordBegin = std::nullopt;
 
                             currentLine.Geometry = box;
                             currentLine.Chars.emplaceBack(box.left(), box.right());
@@ -248,6 +282,7 @@ private:
                 if (!currentLine.Chars.isEmpty())
                 {
                     currentLine.Indices = qMakePair(startIndex, charBoxes.size());
+                    currentLine.Words = words;
                     lines.append(currentLine);
                 }
 
@@ -258,9 +293,11 @@ private:
 
             (void) pageLayoutCache.insert(page, layout); // TODO: make it work calculating layout size after creation
 
-            qDebug() << "Layout" << page;
-            for (const auto& line : layout->Lines)
+            qDebug() << "Page:" << page;
+            for (const auto& line : layout->Lines) {
                 qDebug() << "    " << line.Indices << line.Geometry << line.Geometry.top();
+                qDebug() << "    " << line.Words;
+            }
 
             for (const auto& link : layout->Links)
                 qDebug().noquote() << "    " << link.toString();
@@ -271,8 +308,13 @@ private:
 
     auto getIndices(const int page, const QRectF& rect) const -> std::pair<LineIndices, CharIndices>
     {
+      const QRectF region = rect.normalized();
+
+        if (region.isNull())
+            return {{ -1, -1 }, { -1, -1 }};
+
         const PageLayout& layout = getPageLayout(page);
-        const auto [firstLineIt, lastLineIt] = layout.findLinesCrossedBy(rect.normalized());
+        const auto [firstLineIt, lastLineIt] = layout.findLinesCrossedBy(region);
 
         if (firstLineIt == layout.Lines.end())
         {
@@ -319,7 +361,44 @@ private:
 
     auto getWordIndices(const int page, const QPointF& point) const -> std::pair<LineIndices, CharIndices>
     {
-        // TODO: impl
+        qDebug() << "getWordIndices for" << point;
+
+        const PageLayout& layout = getPageLayout(page);
+
+        const auto lineIt = std::find_if(layout.Lines.begin(), layout.Lines.end(), [point](const LineLayout& line)
+        {
+           return line.Geometry.contains(point);
+        });
+
+        if (lineIt == layout.Lines.end())
+        {
+            return {{ -1, -1}, { -1, -1 }};
+        }
+
+        // TODO: find word boundaries
+
+        const auto wordBoundariesIt = lineIt->findWordAt(point);
+
+        if (wordBoundariesIt == lineIt->Words.end())
+        {
+            return {{ -1, -1}, { -1, -1 }};
+        }
+
+        const auto [x1, x2] = *wordBoundariesIt;
+        const auto [y1, y2] = std::pair(lineIt->Geometry.top(), lineIt->Geometry.bottom());
+
+        const auto rect = QRectF(QPointF { x1, y1 }, QPointF {x2, y2});
+
+        return {
+            {
+                std::distance(layout.Lines.begin(), lineIt),
+                std::distance(layout.Lines.begin(), lineIt),
+            },
+            { // TODO: simplify (and check)
+                lineIt->Indices.first + std::distance(lineIt->Chars.begin(), lineIt->findFirstCharCrossedBy(rect)),
+                lineIt->Indices.first + std::distance(lineIt->Chars.begin(), lineIt->findLastCharCrossedBy(rect)) + 1,
+            }
+        };
     }
 
     friend class StandardDocumentParser;
@@ -372,7 +451,8 @@ auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelect
                     std::tie(m_iLine, m_iChar) = d_ptr->getLineIndices(page, line.point);
                 },
                 [&](const Word& word) {
-                    // TODO: impl
+                    m_page = page;
+                    std::tie(m_iLine, m_iChar) = d_ptr->getWordIndices(page, word.point);
                 },
             }, option);
         }
