@@ -10,24 +10,22 @@ namespace
     {
         auto setDocument(std::shared_ptr<const Document>) -> void final {}
 
-        auto textHit(int, QPointF, uint8_t) const -> bool final { return false; }
-
-        auto textRegion() const -> std::unique_ptr<DocumentTextRegion> final
+        auto selection() const -> std::unique_ptr<DocumentSelection> final
         {
-            struct DummyTextRegion : DocumentTextRegion
+            struct DummySelection : DocumentSelection
             {
-                auto configure(int, QRectF, uint8_t ) -> void final {}
-                auto lod() const -> uint8_t final { return 0; }
-                auto id() const -> uint64_t final { return 0; }
+                auto configure(int, QRectF) -> void final {}
+                auto hash() const -> uint64_t final { return 0; }
                 auto text() const -> QString final { return {}; }
                 auto geometry() const -> QList<QRectF> final { return {}; }
             };
 
-            return std::make_unique<DummyTextRegion>();
+            return std::make_unique<DummySelection>();
         }
 
-        auto linkHit(int, QPointF) const -> bool override { return false; }
-        auto link(int, QPointF) const -> std::optional<DocumentLink> override { return std::nullopt; }
+        auto hasText(int, QPointF) const -> bool final { return false; }
+        auto hasLink(int, QPointF) const -> bool override { return false; }
+        auto getLink(int, QPointF) const -> std::optional<DocumentLink> override { return std::nullopt; }
     };
 
     struct DummyRenderer : DocumentRenderer
@@ -88,22 +86,22 @@ auto DocumentFacade::requestImage(int number, qreal scale) const -> std::optiona
     return m_renderer->requestPageRender(number, scale, m_rendererFeedback);
 }
 
-auto DocumentFacade::linkHit(int page, QPointF point) const -> bool
+auto DocumentFacade::hasLink(int page, QPointF point) const -> bool
 {
-    return m_parser->linkHit(page, point);
+    return m_parser->hasLink(page, point);
 }
 
-auto DocumentFacade::link(int page, QPointF point) const -> std::optional<DocumentLink>
+auto DocumentFacade::getLink(int page, QPointF point) const -> std::optional<DocumentLink>
 {
-    return m_parser->link(page, point);
+    return m_parser->getLink(page, point);
 }
 
-auto DocumentFacade::textHit(int page, QPointF point, uint8_t lod) const -> bool
+auto DocumentFacade::hasText(int page, QPointF point) const -> bool
 {
-    return m_parser->textHit(page, point, lod);
+    return m_parser->hasText(page, point);
 }
 
-auto DocumentFacade::textRegion() const -> std::unique_ptr<DocumentTextRegion>
+auto DocumentFacade::selection() const -> std::unique_ptr<DocumentSelection>
 {
-    return m_parser->textRegion();
+    return m_parser->selection();
 }

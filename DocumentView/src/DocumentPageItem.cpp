@@ -14,7 +14,7 @@ struct DocumentPageItem::Private
     Private(const std::shared_ptr<DocumentFacade>& document, Feedback* feedback, const int number)
         : document(document)
         , feedback(feedback)
-        , textRegion(document->textRegion())
+        , textSelection(document->selection())
         , number(number)
         , pointSize(document->pageSize(number))
     {}
@@ -22,7 +22,7 @@ struct DocumentPageItem::Private
 private:
     std::shared_ptr<DocumentFacade> const document;
     Feedback* const feedback;
-    const std::unique_ptr<DocumentTextRegion> textRegion;
+    const std::unique_ptr<DocumentSelection> textSelection;
 
     const int number;
     const QSizeF pointSize;
@@ -69,7 +69,7 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
         painter->setPen(Qt::NoPen);
         painter->setBrush(QColor(206, 235, 249, 200));
 
-        for (const QList<QRectF> geometries = d_ptr->textRegion->geometry(); const QRectF& geometry : geometries)
+        for (const QList<QRectF> geometries = d_ptr->textSelection->geometry(); const QRectF& geometry : geometries)
             painter->drawRect(geometry.adjusted(-0, -2, +0, +2));
     }
 
@@ -93,10 +93,10 @@ void DocumentPageItem::SetSelectionRect(const QRectF& rect)
     {
         d_ptr->selectionRect = rect;
 
-        const auto idTmp = d_ptr->textRegion->id();
-        d_ptr->textRegion->configure(d_ptr->number, rect);
+        const auto idTmp = d_ptr->textSelection->hash();
+        d_ptr->textSelection->configure(d_ptr->number, rect);
 
-        if (idTmp != d_ptr->textRegion->id())
+        if (idTmp != d_ptr->textSelection->hash())
         {
             update();
         }
@@ -105,7 +105,7 @@ void DocumentPageItem::SetSelectionRect(const QRectF& rect)
 
 QString DocumentPageItem::GetSelectedText() const
 {
-    return d_ptr->textRegion->text();
+    return d_ptr->textSelection->text();
 }
 
 int DocumentPageItem::Number() const
@@ -115,7 +115,7 @@ int DocumentPageItem::Number() const
 
 void DocumentPageItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 {
-    updateCurrentLink(d_ptr->document->link(d_ptr->number, event->pos()));
+    updateCurrentLink(d_ptr->document->getLink(d_ptr->number, event->pos()));
     updateCursorShape(event->pos());
     QGraphicsItem::hoverMoveEvent(event);
 }
@@ -129,14 +129,14 @@ void DocumentPageItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 
 void DocumentPageItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
-    updateCurrentLink(d_ptr->document->link(d_ptr->number, event->pos()));
+    updateCurrentLink(d_ptr->document->getLink(d_ptr->number, event->pos()));
     updateCursorShape(event->pos());
     QGraphicsItem::mouseMoveEvent(event);
 }
 
 void DocumentPageItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
 {
-    if (const auto link = d_ptr->document->link(d_ptr->number, event->pos()); link)
+    if (const auto link = d_ptr->document->getLink(d_ptr->number, event->pos()); link)
         d_ptr->feedback->linkPressed(*link);
 
     updateCursorShape(event->pos());
@@ -170,7 +170,7 @@ void DocumentPageItem::updateCursorShape(std::optional<QPointF> pos)
     {
         setCursor(Qt::CursorShape::PointingHandCursor);
     }
-    else if (d_ptr->document->textHit(d_ptr->number, *pos))
+    else if (d_ptr->document->hasText(d_ptr->number, *pos))
     {
         setCursor(Qt::CursorShape::IBeamCursor);
     }

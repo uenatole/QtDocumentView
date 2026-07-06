@@ -6,14 +6,13 @@
 
 struct Document;
 
-struct DocumentTextRegion
+struct DocumentSelection
 {
-    virtual ~DocumentTextRegion() = default;
+    virtual ~DocumentSelection() = default;
 
-    virtual auto configure(int page, QRectF region, uint8_t lod = - 1) -> void = 0;
+    virtual auto configure(int page, QRectF region) -> void = 0;
 
-    virtual auto lod() const -> uint8_t = 0;
-    virtual auto id() const -> uint64_t = 0;
+    virtual auto hash() const -> uint64_t = 0;
 
     virtual auto text() const -> QString = 0;
     virtual auto geometry() const -> QList<QRectF> = 0;
@@ -25,9 +24,9 @@ struct DocumentParser
 
     virtual auto setDocument(std::shared_ptr<const Document> document) -> void = 0;
 
-    virtual auto textHit(int page, QPointF point, uint8_t lod = -1) const -> bool = 0;
-    virtual auto textRegion() const -> std::unique_ptr<DocumentTextRegion> = 0;
+    virtual auto selection() const -> std::unique_ptr<DocumentSelection> = 0;
 
-    virtual auto linkHit(int page, QPointF point) const -> bool = 0;
-    virtual auto link(int page, QPointF point) const -> std::optional<DocumentLink> = 0;
+    virtual auto hasText(int page, QPointF point) const -> bool = 0;
+    virtual auto hasLink(int page, QPointF point) const -> bool = 0;
+    virtual auto getLink(int page, QPointF point) const -> std::optional<DocumentLink> = 0;
 };

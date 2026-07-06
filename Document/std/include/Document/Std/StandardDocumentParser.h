@@ -12,11 +12,11 @@ public:
 
     auto setDocument(std::shared_ptr<const Document> document) -> void final;
 
-    auto textHit(int page, QPointF point, uint8_t lod) const -> bool final;
-    auto textRegion() const -> std::unique_ptr<DocumentTextRegion> final;
+    auto selection() const -> std::unique_ptr<DocumentSelection> final;
 
-    auto linkHit(int page, QPointF point) const -> bool final;
-    auto link(int page, QPointF point) const -> std::optional<DocumentLink> final;
+    auto hasText(int page, QPointF point) const -> bool final;
+    auto hasLink(int page, QPointF point) const -> bool final;
+    auto getLink(int page, QPointF point) const -> std::optional<DocumentLink> final;
 
 private:
     struct Private;

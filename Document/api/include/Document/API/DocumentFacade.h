@@ -9,7 +9,7 @@ struct Document;
 struct DocumentRenderFeedback;
 struct DocumentRenderer;
 struct DocumentParser;
-struct DocumentTextRegion;
+struct DocumentSelection;
 
 class DocumentFacade
 {
@@ -30,11 +30,11 @@ public:
 
     auto requestImage(int number, qreal scale) const -> std::optional<QImage>;
 
-    auto linkHit(int page, QPointF point) const -> bool;
-    auto link(int page, QPointF point) const -> std::optional<DocumentLink>;
+    auto selection() const -> std::unique_ptr<DocumentSelection>;
 
-    auto textHit(int page, QPointF point, uint8_t lod = -1) const -> bool;
-    auto textRegion() const -> std::unique_ptr<DocumentTextRegion>;
+    auto hasText(int page, QPointF point) const -> bool;
+    auto hasLink(int page, QPointF point) const -> bool;
+    auto getLink(int page, QPointF point) const -> std::optional<DocumentLink>;
 
 private:
     std::shared_ptr<Document> m_document;

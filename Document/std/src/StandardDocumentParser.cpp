@@ -318,34 +318,21 @@ auto StandardDocumentParser::setDocument(std::shared_ptr<const Document> documen
     d->document = document;
 }
 
-auto StandardDocumentParser::textHit(int page, QPointF point, uint8_t lod) const -> bool
+auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelection>
 {
-    (void) lod; // TODO: hit test for different LoD
-    const auto layout = d->getPageLayout(page);
-    return layout.findLineAt(point) != layout.Lines.end();
-}
-
-auto StandardDocumentParser::textRegion() const -> std::unique_ptr<DocumentTextRegion>
-{
-    struct TextRegion : DocumentTextRegion
+    struct TextSelection : DocumentSelection
     {
-        explicit TextRegion(Private* const d)
+        explicit TextSelection(Private* const d)
             : d_ptr(d)
         {}
 
-        auto configure(const int page, const QRectF region, const uint8_t lod) -> void final
+        auto configure(const int page, const QRectF region) -> void final
         {
-            (void) lod;
             m_page = page;
             std::tie(m_iLine, m_iChar) = d_ptr->getIndices(page, region);
         }
 
-        auto lod() const -> uint8_t final
-        {
-            return 0; // TODO: different Level-of-details support
-        }
-
-        auto id() const -> uint64_t final
+        auto hash() const -> uint64_t final
         {
             return static_cast<int64_t>(m_iChar.first) << 32 | m_iChar.second;
         }
@@ -367,16 +354,23 @@ auto StandardDocumentParser::textRegion() const -> std::unique_ptr<DocumentTextR
         Private* const d_ptr;
     };
 
-    return std::make_unique<TextRegion>(d.get());
+    return std::make_unique<TextSelection>(d.get());
 }
 
-auto StandardDocumentParser::linkHit(int page, QPointF point) const -> bool
+
+auto StandardDocumentParser::hasText(int page, QPointF point) const -> bool
+{
+    const auto layout = d->getPageLayout(page);
+    return layout.findLineAt(point) != layout.Lines.end();
+}
+
+auto StandardDocumentParser::hasLink(int page, QPointF point) const -> bool
 {
     // TODO: possible optimization
     return d->getLink(page, point).has_value();
 }
 
-auto StandardDocumentParser::link(int page, QPointF point) const -> std::optional<DocumentLink>
+auto StandardDocumentParser::getLink(int page, QPointF point) const -> std::optional<DocumentLink>
 {
     return d->getLink(page, point);
 }
