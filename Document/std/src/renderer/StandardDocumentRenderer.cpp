@@ -63,7 +63,7 @@ struct StandardDocumentRenderer::Private
         {
             if (renderState->Request == request)
             {
-                return *nearestImage;
+                return nearestImage;
             }
 
             if (renderState->Request.Page == request.Page)
@@ -78,7 +78,7 @@ struct StandardDocumentRenderer::Private
             if (other.Page == request.Page)
             {
                 other.Scale = request.Scale;
-                return *nearestImage;
+                return nearestImage;
             }
         }
 

@@ -37,7 +37,7 @@ DocumentPageItem::DocumentPageItem(const std::shared_ptr<DocumentFacade>& docume
     setCacheMode(NoCache);
     setAcceptHoverEvents(true);
     setFlag(ItemIsSelectable, true);
-    assert(number >= 0 && number < _provider->document()->pageCount());
+    assert(number >= 0 && number < document->pageCount());
 }
 
 DocumentPageItem::~DocumentPageItem() = default;
