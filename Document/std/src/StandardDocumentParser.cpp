@@ -235,19 +235,6 @@ private:
                     const auto& c = chars[i];
                     const auto& box = charBoxes[i];
 
-                    if (c.isSpace()) {
-                        if (wordBegin) {
-                            words.push_back({ *wordBegin, charBoxes[i - 1].right() });
-                            wordBegin = std::nullopt;
-                        }
-                        else {
-                            wordBegin = box.left();
-                        }
-                    }
-                    else if (!wordBegin) {
-                        wordBegin = box.left();
-                    }
-
                     if (currentLine.Chars.isEmpty())
                     {
                         currentLine.Geometry = box;
@@ -277,10 +264,25 @@ private:
                             startIndex = i;
                         }
                     }
+
+                    if (!c.isSpace() && !wordBegin)
+                    {
+                        wordBegin = box.left();
+                    }
+                    else if (c.isSpace() && wordBegin)
+                    {
+                        words.push_back({ *wordBegin, charBoxes[i - 1].right() });
+                        wordBegin = std::nullopt;
+                    }
                 }
 
                 if (!currentLine.Chars.isEmpty())
                 {
+                    if (wordBegin)
+                    {
+                        words.push_back({ *wordBegin, charBoxes.last().right() });
+                    }
+
                     currentLine.Indices = qMakePair(startIndex, charBoxes.size());
                     currentLine.Words = words;
                     lines.append(currentLine);
@@ -361,8 +363,6 @@ private:
 
     auto getWordIndices(const int page, const QPointF& point) const -> std::pair<LineIndices, CharIndices>
     {
-        qDebug() << "getWordIndices for" << point;
-
         const PageLayout& layout = getPageLayout(page);
 
         const auto lineIt = std::find_if(layout.Lines.begin(), layout.Lines.end(), [point](const LineLayout& line)
@@ -374,8 +374,6 @@ private:
         {
             return {{ -1, -1}, { -1, -1 }};
         }
-
-        // TODO: find word boundaries
 
         const auto wordBoundariesIt = lineIt->findWordAt(point);
 
