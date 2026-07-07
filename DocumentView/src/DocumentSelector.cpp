@@ -14,9 +14,9 @@ struct DocumentSelector::Private
         : view(view)
     {}
 
-    auto tryHandleClick(QPoint point) -> bool
+    auto tryHandleClick(const QPoint point) -> bool
     {
-        clickCount++;
+        clickCount = (clickCount + 1) % 4;
         clickTimer.start();
 
         if (clickCount == 2)
@@ -33,43 +33,78 @@ struct DocumentSelector::Private
         return false;
     }
 
-    void onPressed(QPoint point)
+    void onPressed(const QPoint point)
     {
-        dragStart = view->mapToScene(point);
+        const auto scenePos = view->mapToScene(point);
+        dragStart = scenePos;
+        isDrag = false;
 
-        for (const auto item : view->items())
-            if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
-                page->SelectLines({});
+        if (!clickTimer.isActive() || clickCount == 0)
+        {
+            clearSelection();
+        }
     }
 
-    void onReleased(QPoint point)
+    void onReleased(const QPoint point)
     {
-        dragStart = std::nullopt;
-    }
-
-    void onMoved(QPoint point)
-    {
-        // NOTE: this progressive selection method is quite inefficient due to selection from the very beginning on every update.
-        // TODO: provide stateful selection API to make it truly progressive.
-
-        const auto first = *dragStart;
-        const auto second = view->mapToScene(point);
-        const auto selectionRect = QRectF(first, second).normalized();
-
-        for (const auto item : view->items())
-            if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+        if (isDrag)
+        {
+            dragStart = std::nullopt;
+            isDrag = false;
+        }
+        else
+        {
+            if (!tryHandleClick(point))
             {
-                const QRectF sceneIntersectionRect = selectionRect.intersected(page->sceneBoundingRect());
-
-                if (sceneIntersectionRect.isNull())
-                    continue;
-
-                const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
-                page->SelectLines(pageIntersectionRect);
+                clearSelection();
             }
+
+            dragStart = std::nullopt;
+            isDrag = false;
+        }
     }
 
-    void onDoubleClicked(QPoint point)
+    void onMoved(const QPoint point)
+    {
+        if (!isDrag && dragStart.has_value())
+        {
+            const auto currentPos = view->mapToScene(point);
+            const qreal distance = QLineF(*dragStart, currentPos).length();
+
+            if (distance > QApplication::startDragDistance())
+            {
+                isDrag = true;
+                clearSelection();
+
+                clickCount = 0;
+                clickTimer.stop();
+            }
+        }
+
+        if (isDrag && dragStart.has_value())
+        {
+            // NOTE: this progressive selection method is quite inefficient due to selection from the very beginning on every update.
+            // TODO: provide stateful selection API to make it truly progressive.
+
+            const auto first = *dragStart;
+            const auto second = view->mapToScene(point);
+            const auto selectionRect = QRectF(first, second).normalized();
+
+            for (const auto item : view->items())
+                if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+                {
+                    const QRectF sceneIntersectionRect = selectionRect.intersected(page->sceneBoundingRect());
+
+                    if (sceneIntersectionRect.isNull())
+                        continue;
+
+                    const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
+                    page->SelectLines(pageIntersectionRect);
+                }
+        }
+    }
+
+    void onDoubleClicked(const QPoint point) const
     {
         for (const auto item : view->items())
             if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
@@ -83,7 +118,7 @@ struct DocumentSelector::Private
             }
     }
 
-    void onTripleClicked(QPoint point)
+    void onTripleClicked(const QPoint point) const
     {
         for (const auto item : view->items())
             if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
@@ -97,12 +132,20 @@ struct DocumentSelector::Private
             }
     }
 
+    void clearSelection() const
+    {
+        for (const auto item : view->items())
+            if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+                page->SelectLines({});
+    }
+
     DocumentView* const view;
 
     QTimer clickTimer;
     int clickCount = 0;
 
     std::optional<QPointF> dragStart;
+    bool isDrag = false;
 };
 
 DocumentSelector::DocumentSelector(DocumentView* parent)
@@ -129,20 +172,15 @@ bool DocumentSelector::eventFilter(QObject* object, QEvent* event)
 
         if (mouse->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton)
         {
-            if (!d->dragStart)
-                d->onPressed(pos);
+            d->onPressed(pos);
         }
         else if (mouse->type() == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton)
         {
-            d->tryHandleClick(pos);
-
-            if (d->dragStart)
-                d->onReleased(pos);
+            d->onReleased(pos);
         }
         else if (mouse->type() == QEvent::MouseMove)
         {
-            if (d->dragStart)
-                d->onMoved(pos);
+            d->onMoved(pos);
         }
     }
 
