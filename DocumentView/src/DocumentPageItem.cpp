@@ -27,7 +27,7 @@ private:
     const int number;
     const QSizeF pointSize;
 
-    std::optional<DocumentLink> currentLink;
+    std::optional<DocumentLink> hoveredLinkOpt;
 };
 
 DocumentPageItem::DocumentPageItem(const std::shared_ptr<DocumentFacade>& document, Feedback* feedback, const int number)
@@ -72,14 +72,14 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
             painter->drawRect(geometry.adjusted(-0, -2, +0, +2));
     }
 
-    if (d_ptr->currentLink)
+    if (d_ptr->hoveredLinkOpt)
     {
         // TODO: make link highlighting style configurable
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(QColor(255, 255, 204, 160));
 
-        for (const QRectF rect : d_ptr->currentLink->geometry())
+        for (const QRectF rect : d_ptr->hoveredLinkOpt->geometry())
             painter->drawRect(rect.adjusted(-0, -2, +0, +2));
     }
 
@@ -159,10 +159,10 @@ void DocumentPageItem::updateCurrentLink(const std::optional<DocumentLink>& link
         return f == s;
     };
 
-    if (equals(d_ptr->currentLink, link))
+    if (equals(d_ptr->hoveredLinkOpt, link))
         return;
 
-    d_ptr->currentLink = link;
+    d_ptr->hoveredLinkOpt = link;
     update();
 }
 
@@ -172,7 +172,7 @@ void DocumentPageItem::updateCursorShape(std::optional<QPointF> pos)
     {
         unsetCursor();
     }
-    else if (d_ptr->currentLink)
+    else if (d_ptr->hoveredLinkOpt)
     {
         setCursor(Qt::CursorShape::PointingHandCursor);
     }
