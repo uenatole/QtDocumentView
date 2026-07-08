@@ -210,21 +210,19 @@ int DocumentPageItem::Number() const
 
 void DocumentPageItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
 {
-    updateCurrentLink(d_ptr->document->getLink(d_ptr->number, event->pos()));
     updateCursorShape(event->pos());
     QGraphicsItem::hoverMoveEvent(event);
 }
 
 void DocumentPageItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
 {
-    updateCurrentLink(std::nullopt);
-    updateCursorShape();
+    d_ptr->hoveredLinkOpt.reset();
+    unsetCursor();
     QGraphicsItem::hoverLeaveEvent(event);
 }
 
 void DocumentPageItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 {
-    updateCurrentLink(d_ptr->document->getLink(d_ptr->number, event->pos()));
     updateCursorShape(event->pos());
     QGraphicsItem::mouseMoveEvent(event);
 }
@@ -234,11 +232,10 @@ void DocumentPageItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
     if (const auto link = d_ptr->document->getLink(d_ptr->number, event->pos()); link)
         d_ptr->feedback->linkPressed(*link);
 
-    updateCursorShape(event->pos());
     QGraphicsItem::mouseReleaseEvent(event);
 }
 
-void DocumentPageItem::updateCurrentLink(const std::optional<DocumentLink>& link)
+void DocumentPageItem::updateLinkHover(QPointF pos)
 {
     const auto equals = [](const std::optional<DocumentLink>& first, const std::optional<DocumentLink>& second) -> bool
     {
@@ -248,24 +245,25 @@ void DocumentPageItem::updateCurrentLink(const std::optional<DocumentLink>& link
         return f == s;
     };
 
+    const std::optional<DocumentLink> link = d_ptr->document->getLink(d_ptr->number, pos);
+
     if (equals(d_ptr->hoveredLinkOpt, link))
         return;
 
+    qDebug() << "Link hover:" << link.has_value();
     d_ptr->hoveredLinkOpt = link;
     update();
 }
 
-void DocumentPageItem::updateCursorShape(std::optional<QPointF> pos)
+void DocumentPageItem::updateCursorShape(const QPointF pos)
 {
-    if (!pos)
-    {
-        unsetCursor();
-    }
-    else if (d_ptr->hoveredLinkOpt)
+    updateLinkHover(pos);
+
+    if (d_ptr->hoveredLinkOpt)
     {
         setCursor(Qt::CursorShape::PointingHandCursor);
     }
-    else if (d_ptr->document->hasText(d_ptr->number, *pos))
+    else if (d_ptr->document->hasText(d_ptr->number, pos))
     {
         setCursor(Qt::CursorShape::IBeamCursor);
     }

@@ -148,13 +148,10 @@ namespace
                 return line.Geometry.bottom() < p.y();
             });
 
-            if (lineIt == Lines.end() || point.y() < lineIt->Geometry.top())
+            if (lineIt == Lines.end() || !lineIt->Geometry.contains(point))
                 return Lines.end();
 
-            if (lineIt->Geometry.left() <= point.x() && point.x() <= lineIt->Geometry.right())
-                return lineIt;
-
-            return Lines.end();
+            return lineIt;
         }
     };
 }

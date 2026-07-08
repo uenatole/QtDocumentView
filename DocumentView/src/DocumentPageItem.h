@@ -37,8 +37,8 @@ protected:
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* mouseEvent) override;
 
 private:
-    void updateCurrentLink(const std::optional<DocumentLink>& link);
-    void updateCursorShape(std::optional<QPointF> pos = std::nullopt);
+    void updateLinkHover(QPointF pos);
+    void updateCursorShape(QPointF pos);
 
     struct Private;
     std::unique_ptr<Private> d_ptr;
