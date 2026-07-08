@@ -39,7 +39,7 @@ struct DocumentSelector::Private
         dragStart = scenePos;
         isDrag = false;
 
-        if (!clickTimer.isActive() || clickCount == 0)
+        if ((!clickTimer.isActive() || clickCount == 0) && !isPressedWithCtrl)
         {
             clearSelection();
         }
@@ -56,7 +56,7 @@ struct DocumentSelector::Private
         {
             if (!tryHandleClick(point))
             {
-                clearSelection();
+                // clearSelection();
             }
 
             dragStart = std::nullopt;
@@ -74,7 +74,7 @@ struct DocumentSelector::Private
             if (distance > QApplication::startDragDistance())
             {
                 isDrag = true;
-                clearSelection();
+                // clearSelection();
 
                 clickCount = 0;
                 clickTimer.stop();
@@ -99,7 +99,7 @@ struct DocumentSelector::Private
                         continue;
 
                     const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
-                    page->SelectLines(pageIntersectionRect);
+                    page->UpdateSelection(DocumentSelection::Lines { pageIntersectionRect }, isPressedWithCtrl);
                 }
         }
     }
@@ -112,7 +112,7 @@ struct DocumentSelector::Private
                 const auto location = view->mapToScene(point);
                 if (page->sceneBoundingRect().contains(location))
                 {
-                    page->SelectWord(page->mapFromScene(location));
+                    page->UpdateSelection(DocumentSelection::Word { page->mapFromScene(location) }, isPressedWithCtrl);
                     break;
                 }
             }
@@ -126,7 +126,7 @@ struct DocumentSelector::Private
                 const auto location = view->mapToScene(point);
                 if (page->sceneBoundingRect().contains(location))
                 {
-                    page->SelectLine(page->mapFromScene(location));
+                    page->UpdateSelection(DocumentSelection::Line { page->mapFromScene(location) }, isPressedWithCtrl);
                     break;
                 }
             }
@@ -136,7 +136,7 @@ struct DocumentSelector::Private
     {
         for (const auto item : view->items())
             if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
-                page->SelectLines({});
+                page->UpdateSelection(DocumentSelection::None {});
     }
 
     DocumentView* const view;
@@ -146,6 +146,7 @@ struct DocumentSelector::Private
 
     std::optional<QPointF> dragStart;
     bool isDrag = false;
+    bool isPressedWithCtrl = false;
 };
 
 DocumentSelector::DocumentSelector(DocumentView* parent)
@@ -172,6 +173,7 @@ bool DocumentSelector::eventFilter(QObject* object, QEvent* event)
 
         if (mouse->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton)
         {
+            d->isPressedWithCtrl = mouse->modifiers() & Qt::ControlModifier;
             d->onPressed(pos);
         }
         else if (mouse->type() == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton)

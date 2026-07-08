@@ -10,15 +10,18 @@ struct DocumentSelection
 {
     virtual ~DocumentSelection() = default;
 
+    using CharRange = std::pair<std::size_t, std::size_t>;
+
+    struct None {};
     struct Word { QPointF point; };
     struct Line { QPointF point; };
     struct Lines { QRectF region; };
-    using Option = std::variant<Word, Line, Lines>;
+    using Option = std::variant<None, Word, Line, Lines>;
 
+    virtual auto configure(int page, CharRange range) -> void = 0;
     virtual auto configure(int page, const Option& option) -> void = 0;
 
-    virtual auto empty() const -> bool = 0;
-    virtual auto hash() const -> uint64_t = 0;
+    virtual auto range() const -> CharRange = 0;
 
     virtual auto text() const -> QString = 0;
     virtual auto geometry() const -> QList<QRectF> = 0;

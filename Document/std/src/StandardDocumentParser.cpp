@@ -307,6 +307,26 @@ private:
         }
     }
 
+    auto findLine(const QList<LineLayout>& lines, const std::size_t index) const -> QList<LineLayout>::const_iterator {
+        // TODO: optimize
+        return std::find_if(lines.begin(), lines.end(), [&](const LineLayout& line) {
+            return line.FirstCharIndex <= index && index <= line.FirstCharIndex + line.Chars.size();
+        });
+    }
+
+    auto findLineIndices(const int page, const CharIndices &iChar) const -> LineIndices
+    {
+        const auto& [Lines, _] = getPageLayout(page);
+
+        const auto firstIt = findLine(Lines, iChar.first);
+        const auto secondIt = findLine(Lines, iChar.second);
+
+        return {
+            std::distance(Lines.begin(), firstIt),
+            std::distance(Lines.begin(), secondIt),
+        };
+    }
+
     auto getIndices(const int page, const QRectF& rect) const -> std::pair<LineIndices, CharIndices>
     {
       const QRectF region = rect.normalized();
@@ -436,6 +456,13 @@ auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelect
             : d_ptr(d)
         {}
 
+        auto configure(const int page, const CharRange range) -> void final
+        {
+            m_page = page;
+            m_iLine = d_ptr->findLineIndices(page, range); // TODO: Lazy call
+            m_iChar = range;
+        }
+
         auto configure(const int page, const Option& option) -> void final
         {
           std::visit(overload {
@@ -451,17 +478,17 @@ auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelect
                     m_page = page;
                     std::tie(m_iLine, m_iChar) = d_ptr->getWordIndices(page, word.point);
                 },
+                [&](const None&) {
+                    m_page = page;
+                    m_iLine = { -1, -1 };
+                    m_iChar = { -1, -1 };
+                }
             }, option);
         }
 
-        auto empty() const -> bool final
+        auto range() const -> CharRange final
         {
-            return m_page == -1 || hash() == (static_cast<int64_t>(-1) << 32 | -1);
-        }
-
-        auto hash() const -> uint64_t final
-        {
-            return static_cast<int64_t>(m_iChar.first) << 32 | m_iChar.second;
+            return { m_iChar.first, m_iChar.second };
         }
 
         auto text() const -> QString final

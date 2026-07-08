@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Document/API/DocumentParser.h"
+
 #include <QGraphicsItem>
 
 class DocumentFacade;
@@ -21,9 +23,7 @@ public:
 
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;
 
-    void SelectLines(const QRectF& rect);
-    void SelectLine(const QPointF& point);
-    void SelectWord(const QPointF& point);
+    void UpdateSelection(const DocumentSelection::Option& option, bool append = false);
 
     QString GetSelectedText() const;
 
