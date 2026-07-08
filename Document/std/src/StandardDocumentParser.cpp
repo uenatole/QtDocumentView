@@ -190,7 +190,7 @@ struct StandardDocumentParser::Private
     {
         const auto startIndex = iChar.first;
         const auto endIndex = iChar.second;
-        return document->text(page, startIndex, endIndex - startIndex + 1);
+        return document->text(page, startIndex, endIndex - startIndex);
     }
 
     std::optional<DocumentLink> getLink(const int page, const QPointF pos) const
