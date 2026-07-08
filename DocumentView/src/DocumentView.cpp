@@ -137,7 +137,7 @@ QString DocumentView::getSelectedText() const
     for (const QGraphicsItem* page : d->pages.asKeyValueRange() | std::views::values)
         text += dynamic_cast<const DocumentPageItem*>(page)->GetSelectedText();
 
-    return text;
+    return text.trimmed();
 }
 
 QGraphicsItem* DocumentView::page(int i) const
