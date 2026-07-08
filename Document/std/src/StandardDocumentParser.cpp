@@ -14,10 +14,15 @@ namespace
 
     struct LineLayout
     {
-        CharIndices Indices; // [a; b)
+        int32_t FirstCharIndex;
         QRectF Geometry;
         QList<InLineRange> Chars;
         QList<InLineRange> Words;
+
+        [[nodiscard]] auto indices() const -> CharIndices
+        {
+            return { FirstCharIndex, FirstCharIndex + Chars.size() };
+        }
 
         [[nodiscard]] QList<InLineRange>::const_iterator findWordAt(const QPointF& pos) const
         {
@@ -67,19 +72,19 @@ namespace
 
         [[nodiscard]] QRectF getGeometryByIndices(int begin, int end) const
         {
-            if (begin >= Indices.second || begin >= end)
+            if (begin >= indices().second || begin >= end)
                 return {};
 
-            begin = std::max(Indices.first, begin);
-            end = std::min(Indices.second, end);
+            begin = std::max(indices().first, begin);
+            end = std::min(indices().second, end);
 
             if (begin >= end)
                 return {};
 
-            const qreal left = Chars[begin - Indices.first].first;
-            const qreal right = (end == Indices.second)
+            const qreal left = Chars[begin - indices().first].first;
+            const qreal right = (end == indices().second)
                 ? Geometry.right()
-                : Chars[end - Indices.first].first;
+                : Chars[end - indices().first].first;
 
             QRectF subGeometry = Geometry;
             subGeometry.setLeft(left);
@@ -181,7 +186,7 @@ struct StandardDocumentParser::Private
         return geometry;
     }
 
-    QString getText(const int page, const CharIndices& iChar) const
+    QString getTextByIndices(const int page, const CharIndices& iChar) const
     {
         const auto startIndex = iChar.first;
         const auto endIndex = iChar.second;
@@ -205,107 +210,97 @@ struct StandardDocumentParser::Private
 private:
     auto getPageLayout(const int page) const -> const PageLayout&
     {
-        PageLayout* layout = pageLayoutCache.object(page);
+        PageLayout *layout = pageLayoutCache.object(page);
 
         if (!layout)
         {
-            layout = new PageLayout();
-
-            QString chars = document->text(page); // NOTE: for word bounds (redundant?; this can be done using geometry with reasonable spacing between printable characters) TODO: try it
-            QList<QRectF> charBoxes = document->textBoxes(page);
-
-            // Line forming method
-            {
-                QList<LineLayout> lines;
-
-                // TODO: change line detection method because right now it sometimes is wrong
-                const auto isOnLine = [](const QRectF& charRect, const QRectF& lineRect) -> bool
-                {
-                    return charRect.top() <= lineRect.bottom() && charRect.bottom() >= lineRect.top();
-                };
-
-                LineLayout currentLine = {};
-                int startIndex = 0;
-
-                QList<InLineRange> words;
-                std::optional<qreal> wordBegin = std::nullopt;
-
-                for (int i = 0; i < charBoxes.size(); ++i)
-                {
-                    const auto& c = chars[i];
-                    const auto& box = charBoxes[i];
-
-                    if (currentLine.Chars.isEmpty())
-                    {
-                        currentLine.Geometry = box;
-                        currentLine.Chars.emplaceBack(box.left(), box.right());
-                        startIndex = i;
-                    }
-                    else
-                    {
-                        if (isOnLine(currentLine.Geometry, box))
-                        {
-                            currentLine.Geometry |= box; // TODO: optimize calculations
-                            currentLine.Chars.emplaceBack(box.left(), box.right());
-                        }
-                        else
-                        {
-                            currentLine.Indices = qMakePair(startIndex, i);
-                            currentLine.Words = words;
-                            lines.append(currentLine);
-
-                            currentLine = {};
-
-                            words.clear();
-                            wordBegin = std::nullopt;
-
-                            currentLine.Geometry = box;
-                            currentLine.Chars.emplaceBack(box.left(), box.right());
-                            startIndex = i;
-                        }
-                    }
-
-                    if (!c.isSpace() && !wordBegin)
-                    {
-                        wordBegin = box.left();
-                    }
-                    else if (c.isSpace() && wordBegin)
-                    {
-                        words.push_back({ *wordBegin, charBoxes[i - 1].right() });
-                        wordBegin = std::nullopt;
-                    }
-                }
-
-                if (!currentLine.Chars.isEmpty())
-                {
-                    if (wordBegin)
-                    {
-                        words.push_back({ *wordBegin, charBoxes.last().right() });
-                    }
-
-                    currentLine.Indices = qMakePair(startIndex, charBoxes.size());
-                    currentLine.Words = words;
-                    lines.append(currentLine);
-                }
-
-                layout->Lines = lines;
-            }
-
-            layout->Links = document->links(page);
-
+            layout = parse(page);
             (void) pageLayoutCache.insert(page, layout); // TODO: make it work calculating layout size after creation
-
-            qDebug() << "Page:" << page;
-            for (const auto& line : layout->Lines) {
-                qDebug() << "    " << line.Indices << line.Geometry << line.Geometry.top();
-                qDebug() << "    " << line.Words;
-            }
-
-            for (const auto& link : layout->Links)
-                qDebug().noquote() << "    " << link.toString();
         }
 
         return *layout;
+    }
+
+    auto parse(const int page) const -> PageLayout*
+    {
+        auto* layout = new PageLayout;
+
+        const QString chars = document->text(page);
+        const QList<QRectF> boxes = document->textBoxes(page);
+        Q_ASSERT(chars.size() == boxes.size());
+
+        if (boxes.isEmpty())
+            return layout;
+
+        LineLayout line;
+        line.FirstCharIndex = 0;
+        line.Geometry = boxes[0];
+
+        std::optional<double> wordBeginOpt = std::nullopt;
+
+        if (!chars[0].isSpace()) {
+            wordBeginOpt = boxes[0].left();
+        }
+
+        line.Chars.push_back({ boxes[0].left(), boxes[0].right() });
+
+        for (int i = 1; i < chars.size(); ++i)
+        {
+            const auto& chr = chars[i];
+            const auto& box = boxes[i];
+
+            const auto isAdjacent = [](const QRectF& r1, const QRectF& r2) -> bool {
+                // TODO: add epsilon
+                return r2.top() <= r1.bottom() && r2.bottom() >= r1.top();
+            };
+
+            if (isAdjacent(line.Geometry, box)) {
+                line.Geometry |= box;
+            }
+            else {
+                layout->Lines.emplace_back(std::move(line));
+
+                line.Geometry = box;
+                line.FirstCharIndex = i;
+            }
+
+            line.Chars.emplace_back(box.left(), box.right());
+
+            if (!chr.isSpace() && !wordBeginOpt) {
+                wordBeginOpt = box.left();
+            }
+            if (chr.isSpace() && wordBeginOpt) {
+                line.Words.emplace_back(*wordBeginOpt, boxes[i - 1].right());
+                wordBeginOpt = std::nullopt;
+            }
+        }
+
+        if (wordBeginOpt) {
+            line.Words.emplace_back(*wordBeginOpt, boxes.last().right());
+        }
+
+        if (!line.Chars.isEmpty()) {
+            layout->Lines.emplace_back(std::move(line));
+        }
+
+        layout->Links = document->links(page);
+
+        // NOTE: DEBUG
+        DumpPageLayout(*layout, page, *document);
+
+        return layout;
+    }
+
+    static auto DumpPageLayout(const PageLayout& layout,
+                               const int page,
+                               const Document& document) -> void
+    {
+        for (const auto &[index, geometry, chars, words] : layout.Lines) {
+            qDebug() << "    geom: " << geometry;
+            qDebug() << "    text: " << document.text(page, index, chars.size());
+            qDebug() << "    chars:" << chars;
+            qDebug() << "    words:" << words;
+        }
     }
 
     auto getIndices(const int page, const QRectF& rect) const -> std::pair<LineIndices, CharIndices>
@@ -329,8 +324,8 @@ private:
                 std::distance(layout.Lines.begin(), lastLineIt),
             },
             {
-                firstLineIt->Indices.first + std::distance(firstLineIt->Chars.begin(), firstLineIt->findFirstCharCrossedBy(rect)),
-                lastLineIt->Indices.first + std::distance(lastLineIt->Chars.begin(), lastLineIt->findLastCharCrossedBy(rect)) + 1,
+                firstLineIt->indices().first + std::distance(firstLineIt->Chars.begin(), firstLineIt->findFirstCharCrossedBy(rect)),
+                lastLineIt->indices().first + std::distance(lastLineIt->Chars.begin(), lastLineIt->findLastCharCrossedBy(rect)) + 1,
             }
         };
     }
@@ -355,8 +350,8 @@ private:
                 std::distance(layout.Lines.begin(), it),
             },
             {
-                it->Indices.first,
-                it->Indices.second
+                it->indices().first,
+                it->indices().second
             }
         };
     }
@@ -393,8 +388,8 @@ private:
                 std::distance(layout.Lines.begin(), lineIt),
             },
             { // TODO: simplify (and check)
-                lineIt->Indices.first + std::distance(lineIt->Chars.begin(), lineIt->findFirstCharCrossedBy(rect)),
-                lineIt->Indices.first + std::distance(lineIt->Chars.begin(), lineIt->findLastCharCrossedBy(rect)) + 1,
+                lineIt->indices().first + std::distance(lineIt->Chars.begin(), lineIt->findFirstCharCrossedBy(rect)),
+                lineIt->indices().first + std::distance(lineIt->Chars.begin(), lineIt->findLastCharCrossedBy(rect)) + 1,
             }
         };
     }
@@ -467,7 +462,7 @@ auto StandardDocumentParser::selection() const -> std::unique_ptr<DocumentSelect
 
         auto text() const -> QString final
         {
-            return d_ptr->getText(m_page, m_iChar);
+            return d_ptr->getTextByIndices(m_page, m_iChar);
         }
 
         auto geometry() const -> QList<QRectF> final
