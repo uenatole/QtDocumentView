@@ -67,9 +67,6 @@ auto PdfDocument::render(int page, qreal scale) const -> QFuture<QImage>
             timer.start();
             const QImage result = document.render2(page, size, cancel.get());
 
-            if (!result.isNull())
-                qDebug() << "Render finished: page =" << page << "scale =" << scale << " time =" << timer.elapsed() << "ms";
-
             promise.addResult(result);
         }
     );

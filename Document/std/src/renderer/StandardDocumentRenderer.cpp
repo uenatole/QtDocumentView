@@ -7,6 +7,11 @@
 
 #include "RenderCache.h"
 
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(CACHE_DCAT, "std.renderer.cache")
+Q_LOGGING_CATEGORY(QUEUE_DCAT, "std.renderer.queue")
+
 namespace
 {
     struct RenderRequest
@@ -51,7 +56,7 @@ struct StandardDocumentRenderer::Private
     {
         if (const QImage* image = renderCache.object(page, scale); image)
         {
-            qDebug() << "Cache hit: page =" << page << "scale =" << scale;
+            qCDebug(CACHE_DCAT) << "Cache hit: page =" << page << "scale =" << scale;
             return *image;
         }
 
@@ -127,7 +132,8 @@ private:
         const auto prevSize = requests.size();
         requests.erase(requests.begin(), firstActualIt);
 
-        if (const auto diff = prevSize - requests.size(); diff) qDebug() << "Erased" << diff << "elements";
+        if (const auto diff = prevSize - requests.size(); diff)
+            qCDebug(QUEUE_DCAT) << "Erased" << diff << "elements";
 
         if (requests.empty()) return;
 

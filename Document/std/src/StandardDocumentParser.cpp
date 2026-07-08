@@ -5,6 +5,10 @@
 
 #include <Document/API/Document.h>
 
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(PAGE_LAYOUT_DUMP_DCAT, "std.parser.page_layout_dump")
+
 namespace
 {
     using LineIndices = std::pair<int32_t, int32_t>;
@@ -296,10 +300,10 @@ private:
                                const Document& document) -> void
     {
         for (const auto &[index, geometry, chars, words] : layout.Lines) {
-            qDebug() << "    geom: " << geometry;
-            qDebug() << "    text: " << document.text(page, index, chars.size());
-            qDebug() << "    chars:" << chars;
-            qDebug() << "    words:" << words;
+            qCDebug(PAGE_LAYOUT_DUMP_DCAT) << "    geom: " << geometry;
+            qCDebug(PAGE_LAYOUT_DUMP_DCAT) << "    text: " << document.text(page, index, chars.size());
+            qCDebug(PAGE_LAYOUT_DUMP_DCAT) << "    chars:" << chars;
+            qCDebug(PAGE_LAYOUT_DUMP_DCAT) << "    words:" << words;
         }
     }
 
