@@ -79,7 +79,7 @@ struct DocumentView::Private
     const std::unique_ptr<DocumentPageItem::Feedback> feedback;
 
     std::shared_ptr<DocumentFacade> document;
-    QHash<int, DocumentPageItem*> pages;
+    QMap<int, DocumentPageItem*> pages;
 };
 
 DocumentView::DocumentView(QWidget* parent)
