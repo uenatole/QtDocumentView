@@ -166,6 +166,15 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
     painter->save();
     painter->setCompositionMode(QPainter::CompositionMode_Multiply);
 
+#ifdef DOCUMENT_VIEW_DRAW_PAGE_LAYOUT_MARKUP
+    {
+        const auto dSelection = d_ptr->document->selection();
+        dSelection->configure(d_ptr->number, DocumentSelection::Lines { QRectF(QPointF(0, 0), d_ptr->pointSize) });
+        for (const QList<QRectF> geometries = dSelection->geometry(); const QRectF& geometry : geometries)
+            painter->drawRect(geometry.adjusted(-0, -2, +0, +2));
+    }
+#endif
+
     if (!d_ptr->textSelector.empty())
     {
         // TODO: make text selection style configurable

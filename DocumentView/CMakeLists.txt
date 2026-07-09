@@ -1,3 +1,5 @@
+option(DOCUMENT_VIEW_DRAW_PAGE_LAYOUT_MARKUP "Draw page layout markup" ON)
+
 add_library(DocumentView SHARED)
 
 target_sources(DocumentView
@@ -18,6 +20,10 @@ target_include_directories(DocumentView
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
+
+if(DOCUMENT_VIEW_DRAW_PAGE_LAYOUT_MARKUP)
+    target_compile_definitions(DocumentView PRIVATE DOCUMENT_VIEW_DRAW_PAGE_LAYOUT_MARKUP)
+endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
