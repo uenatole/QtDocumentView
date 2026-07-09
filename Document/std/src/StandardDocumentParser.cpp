@@ -215,6 +215,17 @@ private:
 
         if (!layout)
         {
+            // NOTE: this is because of immediate mode (lack of async API):
+            //       if page is not parsed yet, it will be threatened as empty.
+            // TODO: remove after async is implemented.
+            if (!document->textReady(page))
+            {
+                (void) document->forceTextReadiness(page);
+
+                static PageLayout EMPTY_PAGE_LAYOUT = {};
+                return EMPTY_PAGE_LAYOUT;
+            }
+
             layout = parse(page);
             (void) pageLayoutCache.insert(page, layout); // TODO: make it work calculating layout size after creation
         }

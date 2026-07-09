@@ -2,13 +2,16 @@
 
 #include <Document/API/Document.h>
 
-class PdfDocument : public Document
+struct OcrEngine;
+
+class OcrDocument : public Document
 {
 public:
-    PdfDocument();
-    ~PdfDocument() override;
+    OcrDocument();
+    ~OcrDocument() override;
 
-    void load(const QString& path);
+    void setSource(const std::shared_ptr<const Document>& source);
+    void setEngine(std::unique_ptr<OcrEngine>&& engine);
 
     auto pageCount() const -> std::size_t final;
     auto pagePointSize(int page) const -> QSizeF final;
@@ -20,7 +23,6 @@ public:
     auto textBoxes(int page, int from, int count) const -> QList<QRectF> final;
 
     auto render(int page, qreal scale) const -> QFuture<QImage> final;
-
     auto links(int page) const -> QList<DocumentLink> final;
 
 private:
