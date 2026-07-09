@@ -25,6 +25,7 @@ target_link_libraries(example
             DocumentView
             Document::STD
             Document::Backends::Pdf
+            Document::Backends::Ocr
             Qt::Widgets
 )
 # >

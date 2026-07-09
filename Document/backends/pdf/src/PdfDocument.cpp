@@ -30,6 +30,15 @@ auto PdfDocument::pagePointSize(int page) const -> QSizeF
 {
     return d->doc.pagePointSize(page);
 }
+auto PdfDocument::textReady(int) const -> bool
+{
+    return true;
+}
+
+auto PdfDocument::forceTextReadiness(int) const -> QFuture<void>
+{
+    return QtFuture::makeReadyVoidFuture();
+}
 
 auto PdfDocument::text(int page, int from, int count) const -> QString
 {
