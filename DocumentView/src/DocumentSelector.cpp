@@ -36,7 +36,7 @@ struct DocumentSelector::Private
 
     void onPressed(const QPoint point)
     {
-        dragStart = view->mapToScene(point);
+        pressPosition = view->mapToScene(point);
         isDrag = false;
 
         if ((!clickTimer.isActive() || clickCount == 0) && !isPressedWithCtrl)
@@ -46,57 +46,63 @@ struct DocumentSelector::Private
     void onReleased(const QPoint point)
     {
         if (!isDrag)
+        {
             processClick(point);
+        }
+        else
+        {
+            dragSelectedPages.clear();
+            isDrag = false;
+        }
 
-        dragStart = std::nullopt;
-        isDrag = false;
+        pressPosition = std::nullopt;
     }
 
     void onMoved(const QPoint point)
     {
-        std::function<void(DocumentPageItem& page, const DocumentSelection::Option& option)> pageSelectionFn =
-            [](DocumentPageItem& page, const auto& option){
-                page.UpdateLastSelection(option);
-            };
+        if (!pressPosition.has_value())
+            return;
 
-        if (!isDrag && dragStart.has_value())
+        if (!isDrag)
         {
             const auto currentPos = view->mapToScene(point);
-            const qreal distance = QLineF(*dragStart, currentPos).length();
+            const qreal distance = QLineF(*pressPosition, currentPos).length();
 
-            if (distance > QApplication::startDragDistance())
+            if (distance < QApplication::startDragDistance())
+                return;
+
+            isDrag = true;
+            clickCount = 0;
+            clickTimer.stop();
+        }
+
+        // NOTE: this progressive selection method is quite inefficient due to selection from the very beginning on every update.
+        // TODO: provide stateful selection API to make it truly progressive.
+
+        const auto first = *pressPosition;
+        const auto second = view->mapToScene(point);
+        const auto selectionRect = QRectF(first, second).normalized();
+
+        for (const auto item : view->items())
+            if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
             {
-                isDrag = true;
-                clickCount = 0;
-                clickTimer.stop();
+                const QRectF sceneIntersectionRect = selectionRect.intersected(page->sceneBoundingRect());
 
-                pageSelectionFn = [](DocumentPageItem& page, const auto& option){
-                    page.AppendSelection(option);
-                };
-            }
-        }
+                if (sceneIntersectionRect.isNull())
+                    continue;
 
-        if (isDrag && dragStart.has_value())
-        {
-            // NOTE: this progressive selection method is quite inefficient due to selection from the very beginning on every update.
-            // TODO: provide stateful selection API to make it truly progressive.
+                const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
 
-            const auto first = *dragStart;
-            const auto second = view->mapToScene(point);
-            const auto selectionRect = QRectF(first, second).normalized();
-
-            for (const auto item : view->items())
-                if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
+                if (dragSelectedPages.contains(page->Number()))
                 {
-                    const QRectF sceneIntersectionRect = selectionRect.intersected(page->sceneBoundingRect());
-
-                    if (sceneIntersectionRect.isNull())
-                        continue;
-
-                    const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
-                    pageSelectionFn(*page, DocumentSelection::Lines { pageIntersectionRect });
+                    page->UpdateLastSelection(DocumentSelection::Lines { pageIntersectionRect });
                 }
-        }
+                else
+                {
+                    page->AppendSelection(DocumentSelection::Lines { pageIntersectionRect });
+                    dragSelectedPages.insert(page->Number());
+                }
+            }
     }
 
     void onDoubleClicked(const QPoint point) const
@@ -139,9 +145,11 @@ struct DocumentSelector::Private
     QTimer clickTimer;
     int clickCount = 0;
 
-    std::optional<QPointF> dragStart;
-    bool isDrag = false;
+    std::optional<QPointF> pressPosition;
     bool isPressedWithCtrl = false;
+
+    bool isDrag = false;
+    QSet<int> dragSelectedPages;
 };
 
 DocumentSelector::DocumentSelector(DocumentView* parent)

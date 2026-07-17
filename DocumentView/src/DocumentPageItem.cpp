@@ -52,7 +52,13 @@ struct PageTextSelector
 
     auto updateLastSelection(const DocumentSelection::Option& option) -> void
     {
-        if (m_selections.empty() || m_lastSelectionPos == -1)
+        if (m_lastSelectionPos == -1)
+        {
+            appendSelection(option);
+            return;
+        }
+
+        if (m_selections.empty())
             return;
 
         m_selections.erase(m_selections.begin() + m_lastSelectionPos);
