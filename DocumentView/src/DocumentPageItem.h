@@ -23,7 +23,9 @@ public:
 
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = nullptr) override;
 
-    void UpdateSelection(const DocumentSelection::Option& option, bool append = false);
+    void ResetSelection();
+    void AppendSelection(const DocumentSelection::Option& option);
+    void UpdateLastSelection(const DocumentSelection::Option& option);
 
     QString GetSelectedText() const;
 

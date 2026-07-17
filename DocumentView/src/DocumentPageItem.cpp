@@ -14,6 +14,8 @@ template<class... Ts> overload(Ts...) -> overload<Ts...>;
 
 struct PageTextSelector
 {
+    using SelectionList = std::vector<std::unique_ptr<DocumentSelection>>;
+
     explicit PageTextSelector(const int page, const std::shared_ptr<const DocumentFacade>& document)
         : m_page(page)
         , m_document(document)
@@ -42,74 +44,129 @@ struct PageTextSelector
         return geometry;
     }
 
-    auto update(const DocumentSelection::Option& option, const bool append)
+    auto resetSelection()
     {
-        if (std::holds_alternative<DocumentSelection::None>(option))
-        {
-            m_selections.clear();
+        m_selections.clear();
+        m_lastSelectionPos = -1;
+    }
+
+    auto updateLastSelection(const DocumentSelection::Option& option) -> void
+    {
+        if (m_selections.empty() || m_lastSelectionPos == -1)
             return;
-        }
 
-        if (!append)
-            m_selections.clear();
+        m_selections.erase(m_selections.begin() + m_lastSelectionPos);
+        m_lastSelectionPos = -1;
 
-        // Создаем новое выделение
+        if (std::holds_alternative<DocumentSelection::None>(option))
+            return;
+
+        appendSelection(option);
+    }
+
+    auto appendSelection(const DocumentSelection::Option& option) -> void
+    {
+        assert(!std::holds_alternative<DocumentSelection::None>(option));
+
         auto newSelection = m_document->selection();
         newSelection->configure(m_page, option);
 
-        if (m_selections.empty()) {
-            m_selections.push_back(std::move(newSelection));
-            return;
-        }
-
-        auto [newStart, newEnd] = newSelection->range();
-
-        const auto firstOverlap = std::lower_bound(
-            m_selections.begin(),
-            m_selections.end(),
-            newStart,
-            [](const auto& sel, std::size_t value) {
-                return sel->range().second < value;
-            }
-        );
-
-        const auto lastOverlap = std::upper_bound(
-            firstOverlap,
-            m_selections.end(),
-            newEnd,
-            [](std::size_t value, const auto& sel) {
-                return value < sel->range().first;
-            }
-        );
-
-        if (firstOverlap == lastOverlap)
-        {
-            const auto insertPos = std::lower_bound(
-                m_selections.begin(),
-                m_selections.end(),
-                newStart,
-                [](const auto& sel, std::size_t value) {
-                    return sel->range().first < value;
-                }
-            );
-            m_selections.insert(insertPos, std::move(newSelection));
-            return;
-        }
-
-        auto mergedStart = std::min(newStart, (*firstOverlap)->range().first);
-        auto mergedEnd = std::max(newEnd, (*std::prev(lastOverlap))->range().second);
-
-        auto mergedSelection = m_document->selection();
-        mergedSelection->configure(m_page, {mergedStart, mergedEnd});
-
-        *firstOverlap = std::move(mergedSelection);
-        m_selections.erase(std::next(firstOverlap), lastOverlap);
+        mergeSelectionInto(std::move(newSelection));
     }
+
+// NOTE: Current implementation is inefficient due to the large amount of
+//       order-based conditional code inside the loop over the ordered data.
+//       There is also some memory copy/allocation overhead.
+//       But it “works TM”, that’s why it’s here.
+//
+// TODO: Optimize it!
+auto mergeSelectionInto(std::unique_ptr<DocumentSelection>&& new_selection) -> void
+{
+    const auto [a, b] = new_selection->range();
+
+    SelectionList result;
+    result.reserve(m_selections.size() + 2);
+
+    bool inserted = false;
+    std::optional<std::size_t> leftTouchOpt;
+    std::optional<std::size_t> rightTouchOpt;
+
+    for (auto it = m_selections.begin(); it != m_selections.end(); ++it)
+    {
+        const auto [l, r] = (*it)->range();
+
+        if (r < a)
+        {
+            result.push_back(std::move(*it));
+            continue;
+        }
+
+        if (l > b)
+        {
+            if (!inserted)
+            {
+                const auto finalLeft = leftTouchOpt.value_or(a);
+                const auto finalRight = rightTouchOpt.value_or(b);
+
+                auto merged = m_document->selection();
+                merged->configure(m_page, {finalLeft, finalRight});
+                result.push_back(std::move(merged));
+                m_lastSelectionPos = result.size() - 1;
+                inserted = true;
+            }
+            result.push_back(std::move(*it));
+            continue;
+        }
+
+        if (l < a)
+        {
+            if (l <= a - 1)
+            {
+                auto leftPart = m_document->selection();
+                leftPart->configure(m_page, {l, a - 1});
+                result.push_back(std::move(leftPart));
+            }
+        }
+        else if (l == a)
+        {
+            leftTouchOpt = l;
+        }
+
+        if (r > b)
+        {
+            if (b + 1 <= r)
+            {
+                auto rightPart = m_document->selection();
+                rightPart->configure(m_page, {b + 1, r});
+                result.push_back(std::move(rightPart));
+            }
+        }
+        else if (r == b)
+        {
+            rightTouchOpt = r;
+        }
+    }
+
+    if (!inserted)
+    {
+        const auto finalLeft = leftTouchOpt.value_or(a);
+        const auto finalRight = rightTouchOpt.value_or(b);
+
+        auto merged = m_document->selection();
+        merged->configure(m_page, {finalLeft, finalRight});
+        result.push_back(std::move(merged));
+        m_lastSelectionPos = result.size() - 1;
+    }
+
+    m_selections = std::move(result);
+}
 
 private:
     const int m_page;
     const std::shared_ptr<const DocumentFacade> m_document;
-    std::vector<std::unique_ptr<DocumentSelection>> m_selections;
+
+    SelectionList m_selections;
+    std::size_t m_lastSelectionPos = -1;
 };
 
 struct DocumentPageItem::Private
@@ -200,11 +257,22 @@ void DocumentPageItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
     painter->restore();
 }
 
-void DocumentPageItem::UpdateSelection(const DocumentSelection::Option &option,
-                                       const bool append)
+void DocumentPageItem::ResetSelection()
 {
-    d_ptr->textSelector.update(option, append);
-    update(); // TODO: return bool (should update) from PageTextSelector::update
+    d_ptr->textSelector.resetSelection();
+    update();
+}
+
+void DocumentPageItem::AppendSelection(const DocumentSelection::Option& option)
+{
+    d_ptr->textSelector.appendSelection(option);
+    update();
+}
+
+void DocumentPageItem::UpdateLastSelection(const DocumentSelection::Option& option)
+{
+    d_ptr->textSelector.updateLastSelection(option);
+    update();
 }
 
 QString DocumentPageItem::GetSelectedText() const
