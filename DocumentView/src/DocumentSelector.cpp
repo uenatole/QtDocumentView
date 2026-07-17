@@ -14,7 +14,7 @@ struct DocumentSelector::Private
         : view(view)
     {}
 
-    auto tryHandleClick(const QPoint point) -> bool
+    auto processClick(const QPoint point) -> bool
     {
         clickCount = (clickCount + 1) % 4;
         clickTimer.start();
@@ -24,7 +24,8 @@ struct DocumentSelector::Private
             onDoubleClicked(point);
             return true;
         }
-        else if (clickCount == 3)
+
+        if (clickCount == 3)
         {
             onTripleClicked(point);
             return true;
@@ -35,37 +36,29 @@ struct DocumentSelector::Private
 
     void onPressed(const QPoint point)
     {
-        const auto scenePos = view->mapToScene(point);
-        dragStart = scenePos;
+        dragStart = view->mapToScene(point);
         isDrag = false;
 
         if ((!clickTimer.isActive() || clickCount == 0) && !isPressedWithCtrl)
-        {
             clearSelection();
-        }
     }
 
     void onReleased(const QPoint point)
     {
-        if (isDrag)
-        {
-            dragStart = std::nullopt;
-            isDrag = false;
-        }
-        else
-        {
-            if (!tryHandleClick(point))
-            {
-                // clearSelection();
-            }
+        if (!isDrag)
+            processClick(point);
 
-            dragStart = std::nullopt;
-            isDrag = false;
-        }
+        dragStart = std::nullopt;
+        isDrag = false;
     }
 
     void onMoved(const QPoint point)
     {
+        std::function<void(DocumentPageItem& page, const DocumentSelection::Option& option)> pageSelectionFn =
+            [](DocumentPageItem& page, const auto& option){
+                page.UpdateLastSelection(option);
+            };
+
         if (!isDrag && dragStart.has_value())
         {
             const auto currentPos = view->mapToScene(point);
@@ -74,10 +67,12 @@ struct DocumentSelector::Private
             if (distance > QApplication::startDragDistance())
             {
                 isDrag = true;
-                // clearSelection();
-
                 clickCount = 0;
                 clickTimer.stop();
+
+                pageSelectionFn = [](DocumentPageItem& page, const auto& option){
+                    page.AppendSelection(option);
+                };
             }
         }
 
@@ -99,7 +94,7 @@ struct DocumentSelector::Private
                         continue;
 
                     const QRectF pageIntersectionRect = page->mapRectFromScene(sceneIntersectionRect);
-                    page->UpdateSelection(DocumentSelection::Lines { pageIntersectionRect }, isPressedWithCtrl);
+                    pageSelectionFn(*page, DocumentSelection::Lines { pageIntersectionRect });
                 }
         }
     }
@@ -112,7 +107,7 @@ struct DocumentSelector::Private
                 const auto location = view->mapToScene(point);
                 if (page->sceneBoundingRect().contains(location))
                 {
-                    page->UpdateSelection(DocumentSelection::Word { page->mapFromScene(location) }, isPressedWithCtrl);
+                    page->AppendSelection(DocumentSelection::Word { page->mapFromScene(location) });
                     break;
                 }
             }
@@ -126,7 +121,7 @@ struct DocumentSelector::Private
                 const auto location = view->mapToScene(point);
                 if (page->sceneBoundingRect().contains(location))
                 {
-                    page->UpdateSelection(DocumentSelection::Line { page->mapFromScene(location) }, isPressedWithCtrl);
+                    page->AppendSelection(DocumentSelection::Line { page->mapFromScene(location) });
                     break;
                 }
             }
@@ -136,7 +131,7 @@ struct DocumentSelector::Private
     {
         for (const auto item : view->items())
             if (const auto page = dynamic_cast<DocumentPageItem*>(item); page)
-                page->UpdateSelection(DocumentSelection::None {});
+                page->ResetSelection();
     }
 
     DocumentView* const view;
