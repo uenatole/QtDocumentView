@@ -6,11 +6,11 @@
 
 struct Document;
 
+using CharRange = std::pair<std::size_t, std::size_t>;
+
 struct DocumentSelection
 {
     virtual ~DocumentSelection() = default;
-
-    using CharRange = std::pair<std::size_t, std::size_t>;
 
     struct None {};
     struct Word { QPointF point; };

@@ -3,12 +3,19 @@ add_library(Document::STD ALIAS DocumentSTD)
 
 target_sources(DocumentSTD
     PRIVATE
-        src/StandardDocumentParser.cpp
-
         src/renderer/QCacheExt.h
         src/renderer/RenderCache.cpp
         src/renderer/RenderCache.h
         src/renderer/StandardDocumentRenderer.cpp
+
+        src/parser/layout/DocumentLayout.cpp
+        src/parser/layout/DocumentLayout.h
+        src/parser/layout/PageLayout.cpp
+        src/parser/layout/PageLayout.h
+        src/parser/layout/LineLayout.cpp
+        src/parser/layout/LineLayout.h
+        src/parser/StandardDocumentParsing.cpp
+        src/parser/StandardPageParsing.cpp
 )
 
 target_include_directories(DocumentSTD
