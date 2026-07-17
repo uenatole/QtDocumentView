@@ -31,7 +31,7 @@ int main(int argc, char** argv)
     const auto parser = std::make_shared<StandardDocumentParser>();
 
     const auto document = std::make_shared<DocumentFacade>();
-    document->setDocument(ocr);
+    document->setDocument(pdf);
     document->setRenderer(renderer);
     document->setParser(parser);
 
