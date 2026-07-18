@@ -68,7 +68,7 @@ struct DocumentSelector::Private
             const auto currentPos = view->mapToScene(point);
             const qreal distance = QLineF(*pressPosition, currentPos).length();
 
-            if (distance < QApplication::startDragDistance())
+            if (distance < 2)
                 return;
 
             isDrag = true;
