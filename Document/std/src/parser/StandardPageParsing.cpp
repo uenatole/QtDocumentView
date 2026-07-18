@@ -29,15 +29,26 @@ auto ParsePageLayout(const QString& chars, const QList<QRectF>& boxes) -> std::s
     for (int i = 1; i < chars.size(); ++i)
     {
         const auto& chr = chars[i];
-        const auto& box = boxes[i];
+        auto box = boxes[i];
 
         const auto isAdjacent = [](const QRectF& r1, const QRectF& r2) -> bool {
             // TODO: add epsilon
             return r2.top() <= r1.bottom() && r2.bottom() >= r1.top();
         };
 
-        if (isAdjacent(line.Geometry, box)) {
+        if (isAdjacent(line.Geometry, box))
+        {
             line.Geometry |= box;
+
+            // Remove gaps between two sequential characters in line
+            {
+                auto& box_i = line.Chars.last();
+                auto& box_j = box;
+
+                const auto avg = (box_i.right() + box_j.left()) / 2;
+                box_i.setRight(avg);
+                box_j.setLeft(avg);
+            }
         }
         else {
             layout->Lines.emplace_back(std::move(line));
